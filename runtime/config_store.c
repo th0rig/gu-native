@@ -24,7 +24,7 @@ static SDL_AtomicInt live_fps, live_fov, live_mouse, live_draw = {0x3f800000}, l
                      live_fxaa_mode, live_smooth, live_discord, live_discord_hunter, live_binds[BINDS][BIND_KEYS],
                      live_touch, live_touch_hud, live_touch_show[TB_COUNT], live_touch_combo[TOUCH_COMBOS], live_touch_combo_pad[TOUCH_COMBOS], live_touch_cam, live_touch_opacity, live_lock_on = {1}, live_gyro_aim, live_gyro_sens, live_mouse_menus = {1},
                      live_touch_vibration = {1}, live_phone_rumble = {1}, live_show_stats, live_pause_bg = {1}, live_pause_menu = {1},
-                     live_shadows = {1}, live_bloom = {1}, live_grass = {1}, live_effects = {1}, live_reverb = {1},
+                     live_shadows = {1}, live_bloom = {1}, live_bloom_skip, live_grass = {1}, live_effects = {1}, live_reverb = {1},
                      live_online_notice, live_send_all_rewards;
 static void set_float(SDL_AtomicInt *slot, float value) {
     int bits; _Static_assert(sizeof bits == sizeof value, "32-bit float settings");
@@ -77,6 +77,7 @@ static void publish_live(const Config *c, bool all) {
     if (all || c->pause_menu != saved.pause_menu) SDL_SetAtomicInt(&live_pause_menu, c->pause_menu);
     if (all || c->shadows != saved.shadows) SDL_SetAtomicInt(&live_shadows, c->shadows);
     if (all || c->bloom != saved.bloom) SDL_SetAtomicInt(&live_bloom, c->bloom);
+    if (all || c->bloom_skip != saved.bloom_skip) SDL_SetAtomicInt(&live_bloom_skip, c->bloom_skip);
     if (all || c->grass != saved.grass) SDL_SetAtomicInt(&live_grass, c->grass);
     if (all || c->effects != saved.effects) SDL_SetAtomicInt(&live_effects, c->effects);
     if (all || c->reverb != saved.reverb) SDL_SetAtomicInt(&live_reverb, c->reverb);
@@ -194,6 +195,7 @@ int config_live_pause_background(void) { return SDL_GetAtomicInt(&live_pause_bg)
 int config_live_pause_menu(void) { return SDL_GetAtomicInt(&live_pause_menu); }
 int config_live_shadows(void) { return SDL_GetAtomicInt(&live_shadows); }
 int config_live_bloom(void) { return SDL_GetAtomicInt(&live_bloom); }
+int config_live_bloom_skip(void) { return SDL_GetAtomicInt(&live_bloom_skip); }
 int config_live_grass(void) { return SDL_GetAtomicInt(&live_grass); }
 int config_live_effects(void) { return SDL_GetAtomicInt(&live_effects); }
 int config_live_reverb(void) { return SDL_GetAtomicInt(&live_reverb); }
@@ -203,6 +205,7 @@ int config_live_online_notice(void) { return SDL_GetAtomicInt(&live_online_notic
 void config_live_test(const Config *c) {
     SDL_SetAtomicInt(&live_shadows, c->shadows);
     SDL_SetAtomicInt(&live_bloom, c->bloom);
+    SDL_SetAtomicInt(&live_bloom_skip, c->bloom_skip);
     SDL_SetAtomicInt(&live_grass, c->grass);
     SDL_SetAtomicInt(&live_effects, c->effects);
     set_float(&live_fps, (float)c->fps);

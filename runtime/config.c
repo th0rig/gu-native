@@ -253,6 +253,11 @@ static const char DEFAULT_INI[] =
     "; Default: On\n"
     "Bloom = On\n"
     "\n"
+    "; Test, with Bloom On: leave out one of the two draws that add the bloom and depth of field chain to the picture.\n"
+    "; None, Add or Glow. Find out which one removes what you want gone\n"
+    "; Default: None\n"
+    "BloomSkip = None\n"
+    "\n"
     "; The grass fields of the maps, as the tall grass of the Marshland's area 8 (the plants that are part of a map's\n"
     "; ground stay). Off: faster where there is a lot of it on a weak GPU\n"
     "; Default: On\n"
@@ -853,6 +858,7 @@ const ConfigSetting g_settings[] = {
     ON_OFF("Performance", "Grass", grass, false),
     ON_OFF("Performance", "Effects", effects, false),
     ON_OFF("Performance", "Bloom", bloom, false),
+    {"Performance", "BloomSkip", SET_CHOICE, F(bloom_skip), 0, 0, 0, "None|off|0,Add|1,Glow|2", NULL, false, ERR_MISC},
     {"Performance", "AdrenoFix", SET_CHOICE, F(adreno_fix), 0, 0, 0, "Auto,Off", NULL, true, ERR_MISC},
 #ifdef __ANDROID__
     ON_OFF("Performance", "ShowStats", show_stats, false),
