@@ -64,8 +64,8 @@ jobs:
           git clone --depth 1 --branch v2026.4 https://github.com/google/shaderc.git shaderc
           cd shaderc
           python utils/git-sync-deps
-          cd ../..
-          ls deps/src
+          
+      
 
       - name: Build dependencies (SDL3, shaderc, FFmpeg)
         if: steps.deps-cache.outputs.cache-hit != 'true'
