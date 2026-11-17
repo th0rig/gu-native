@@ -44,7 +44,7 @@ jobs:
 
       - name: Cache built dependencies
         id: deps-cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: |
             deps/out
@@ -73,10 +73,19 @@ jobs:
           set -e
           bash deps/build_deps.sh arm64-v8a
           bash deps/build_ffmpeg.sh arm64-v8a
+      - name: Save dependency cache
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            deps/out
+            deps/src
+          key: deps-${{ runner.os }}-${{ hashFiles('deps/build_deps.sh', 'deps/build_ffmpeg.sh') }}
 
       - name: Build the runtime (libmain.so and friends)
         run: |
           set -e
+          mkdir -p native/build
           pip install lz4
           bash native/build_native.sh arm64-v8a
 
