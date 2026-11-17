@@ -5527,7 +5527,13 @@ static bool small_target(void) {
 // upscaling, whose start of the HUD is found from these post passes (fsr.c); Low-end mode's plain scaling (g_fsr_on
 // too, without g_config.fsr) has always gone with it.
 static bool lowend_skipped(Prog *pr) {
-    if (config_live_bloom() || g_config.fsr) { bloom_open = false; return false; }
+    if (config_live_bloom() || g_config.fsr) {
+        bloom_open = false;
+        int skip = config_live_bloom_skip();  // [Performance] BloomSkip (test): one of the two adds left out, the chain stays
+        if (!skip || g_config.fsr) return false;
+        uint64_t hh = prog_fs_hash(pr);
+        return (skip == 1 && hh == BLOOM_ADD_FS_HASH) || (skip == 2 && hh == BLOOM_GLOW_FS_HASH);
+    }
     uint64_t h = prog_fs_hash(pr);
     if (h == BLOOM_FIRST_FS_HASH) bloom_open = true, bloom_frame = g_present_count;
     if (bloom_open && (bloom_frame != g_present_count || !small_target())) bloom_open = false;
