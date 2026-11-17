@@ -1,0 +1,125 @@
+name: Build APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_id:
+        description: "Android package name. Keep the default to install beside your current app (own saves, no signature clash). Use com.mhgu.recomp only to replace the original (needs the same signing key, or uninstall first: that deletes its saves)."
+        default: "com.mhgu.recomp.bloom"
+        required: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 240
+    defaults:
+      run:
+        shell: bash
+    env:
+      JOBS: 4
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Android SDK, NDK 27.0.12077973, CMake 3.22.1
+        shell: pwsh
+        run: |
+          $sdk = $env:ANDROID_HOME
+          New-Item -ItemType Directory -Force "$env:LOCALAPPDATA\Android" | Out-Null
+          if (-not (Test-Path "$env:LOCALAPPDATA\Android\Sdk")) {
+            New-Item -ItemType Junction -Path "$env:LOCALAPPDATA\Android\Sdk" -Target $sdk | Out-Null
+          }
+          $sm = "$sdk\cmdline-tools\latest\bin\sdkmanager.bat"
+          (1..30 | ForEach-Object { "y" }) | & $sm --licenses | Out-Null
+          & $sm "ndk;27.0.12077973" "cmake;3.22.1" "platforms;android-35" "build-tools;35.0.0"
+          if ($LASTEXITCODE -ne 0) { throw "sdkmanager failed" }
+
+      - name: Cache built dependencies
+        id: deps-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps/out
+            deps/src
+          key: deps-${{ runner.os }}-${{ hashFiles('deps/build_deps.sh', 'deps/build_ffmpeg.sh') }}
+
+      - name: Download dependency sources
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          mkdir -p deps/src
+          cd deps/src
+          curl -fsSL -o sdl.tar.gz https://github.com/libsdl-org/SDL/releases/download/release-3.4.18/SDL3-3.4.18.tar.gz
+          tar xzf sdl.tar.gz && rm sdl.tar.gz
+          curl -fsSL -o ffmpeg.tar.xz https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz
+          tar xJf ffmpeg.tar.xz && mv ffmpeg-9.0.2 ffmpeg && rm ffmpeg.tar.xz
+          git clone --depth 1 --branch v2026.4 https://github.com/google/shaderc.git shaderc
+          cd shaderc
+          python utils/git-sync-deps
+          cd ../..
+          ls deps/src
+
+      - name: Build dependencies (SDL3, shaderc, FFmpeg)
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          bash deps/build_deps.sh arm64-v8a
+          bash deps/build_ffmpeg.sh arm64-v8a
+
+      - name: Build the runtime (libmain.so and friends)
+        run: |
+          set -e
+          pip install lz4
+          bash native/build_native.sh arm64-v8a
+
+      - name: Signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -e
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > android/mhgu.keystore
+            SP="$KEYSTORE_PASSWORD"; KA="$KEY_ALIAS"; KP="$KEY_PASSWORD"
+          else
+            echo "::warning::No signing secrets: using a throwaway key for this build"
+            SP="throwaway-$RANDOM$RANDOM"; KA="mhgu"; KP="$SP"
+            keytool -genkeypair -keystore android/mhgu.keystore -alias "$KA" -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "$SP" -keypass "$KP" -dname "CN=MHGU custom build"
+          fi
+          printf 'storePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' "$SP" "$KA" "$KP" > android/keystore.properties
+
+      - name: Package name
+        run: |
+          set -e
+          sed -i 's|applicationId "com.mhgu.recomp"|applicationId "${{ inputs.app_id }}"|' android/app/build.gradle
+          grep -n applicationId android/app/build.gradle
+
+      - name: Build the APK
+        working-directory: android
+        run: |
+          set -e
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Show the APK
+        run: |
+          set -e
+          ls -la android/app/build/outputs/apk/release/
+          sha256sum android/app/build/outputs/apk/release/*.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mhgu-apk
+          path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
